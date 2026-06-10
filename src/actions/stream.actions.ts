@@ -1,20 +1,21 @@
-"use server"
+"use server";
 
 import { currentUser } from "@clerk/nextjs/server";
-import { StreamClient } from "@stream-io/node-sdk";
+import * as jose from "jose";
 
+export const streamTokenProvider = async () => {
+  const user = await currentUser();
+  if (!user) throw new Error("User not authenticated");
 
-export const streamTokenProvider = async() => {
-    const user = await currentUser();
+  const secret = new TextEncoder().encode(process.env.STREAM_SECRET_KEY!);
 
-    if(!user) throw new Error("User not authenticated");   
+  const now = Math.floor(Date.now() / 1000);
 
-    const streamClient = new StreamClient(
-        process.env.NEXT_PUBLIC_STREAM_API_KEY!,
-        process.env.STREAM_SECRET_KEY!
-    );
+  const token = await new jose.SignJWT({ user_id: user.id })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt(now - 300)
+    .setExpirationTime(now + 3600)
+    .sign(secret);
 
-    const token = streamClient.generateUserToken({user_id: user.id});
-
-    return token;
-}
+  return token;
+};
